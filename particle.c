@@ -1,17 +1,21 @@
 /**------------------------------------------------------------------------
 
- Proguram : ParticleFilterLocalization for c
+ Program : Particle Filter for c
 
  Explanation : 
   1) Make Draft cource by length and angle each time step.
   2) Length and angle have gaussian noise.
-  3) Overvation distance from 4 land mark point.
-     Each Distance has gaussian noise with scope range only.
-  4) Particles(100) is strewed around move point with moving by length and angle.
+  3) robot can observe distance from 4 land mark point.
+     Each istance has gaussian noise within scope range only.
+  4) Particles(100) is strewed around moving point by length and angle.
   5) Calculate each likehood of particle by distances form land mark.
-  6) estimate localization by all particles.
+  6) Estimate localization by all particles.
   7) If likehood has large difference each other, resamplingt is made.
 
+ Quation :
+  This program is transrated from matlab below code.
+  Thanks to Auther of the matlab code.
+  http://myenigma.hatenablog.com/entry/20140628/1403956852
 
  Environment : C
 
@@ -30,8 +34,8 @@
 function [] = ParticleFilterLocalization()
 **/ 
 
-#define MAX_RANGE 20  //最大観測距離
-#define NP        100        //パーティクル数
+#define MAX_RANGE 20        //最大観測距離
+#define NP        100       //パーティクル数
 #define NTh       NP/2.0    //リサンプリングを実施する有効パーティクル数
 #define DIM       3
 #define EPS       0.0000000001
@@ -46,9 +50,6 @@ void   Normalize(double *,int);
 void   Resampling(double **,double *,double,int);
 double pNormR(double);
  
-/* tic; */
-// movcount=0;
-
 // Main loop
 int main(argc,argv)
 int argc;
@@ -243,11 +244,6 @@ double pNormR(double rnd)
    if(rnd >= 1) rnd -= EPS;
    return(comPnorm(rnd));
 }
-
-//アニメーション保存
-//movie2avi(mov,'movie.avi');
-
-/* DrawGraph(result); */
 
 /*********************************************/
 /* function [px,pw]=Resampling(px,pw,NTh,NP) */
@@ -453,27 +449,7 @@ double **z;
   return(izn);
 }
 
-/* function []=DrawGraph(result) 
-void DrawGraph(result)
-{
-  //Plot Result
- 
-  figure(1);
-  bild off;
-  x=[ result.xTrue(:,1:2) result.xEst(:,1:2)];
-  set(gca, 'fontsize', 16, 'fontname', 'times');
-  plot(x(:,1), x(:,2),'-.b','linewidth', 4); hold on;
-  plot(x(:,3), x(:,4),'r','linewidth', 4); hold on;
-  plot(result.xd(:,1), result.xd(:,2),'--k','linewidth', 4); hold on;
- 
-  title('PF Localization Result', 'fontsize', 16, 'fontname', 'times');
-  xlabel('X (m)', 'fontsize', 16, 'fontname', 'times');
-  ylabel('Y (m)', 'fontsize', 16, 'fontname', 'times');
-  legend('Ground Truth','PF','Dead Reckoning');
-  grid on;
-  axis equal;
-}
-***/
+
 /* function radian = toRadian(degree) */
 /******************
  degree to radian
