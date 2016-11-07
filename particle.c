@@ -1,19 +1,21 @@
 /**------------------------------------------------------------------------
-%
-% File : ParticleFilterLocalization.m
-%
-% Discription : Mobible robot localization sample code with
-%               ParticleFilterLocalization (PF)
-%               The Robot can get a range data from RFID that its position
-%               known.
-%
-% Environment : Matlab
-%
-% Author : Atsushi Sakai
-%
-% Copyright (c): 2014 Atsushi Sakai
-%
-% License : Modified BSD Software License Agreement
+
+ Proguram : ParticleFilterLocalization for c
+
+ Explanation : 
+  1) Make Draft cource by length and angle each time step.
+  2) Length and angle have gaussian noise.
+  3) Overvation distance from 4 land mark point.
+     Each Distance has gaussian noise with scope range only.
+  4) Particles(100) is strewed around move point with moving by length and angle.
+  5) Calculate each likehood of particle by distances form land mark.
+  6) estimate localization by all particles.
+  7) If likehood has large difference each other, resamplingt is made.
+
+
+ Environment : C
+
+ Author : Masato Nakai
  -----------------------------------------------------------------------**/
 #include <stdio.h>
 #include <stdlib.h>
