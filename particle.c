@@ -34,15 +34,20 @@
 function [] = ParticleFilterLocalization()
 **/ 
 
-#define MAX_RANGE 20        //最大観測距離
+#define MAX_RANGE 50        //最大観測距離
 #define NP        100       //パーティクル数
 #define NTh       NP/2.0    //リサンプリングを実施する有効パーティクル数
 #define DIM       3
 #define EPS       0.0000000001
 
+#define NPRIF     4
+
+#define PERMIT_SIZE  1        //permit radius size of at corner
+#define MAX_CORNER   5        //End at Corner
+
 double toRadian(double);
 double toDegree(double);
-double doControl(double,double *);
+int    doControl(double,double *,double *,double **,int);
 int    Observation();
 void   factor(double *,double *,double);
 double Gauss(double,double,double);
@@ -64,7 +69,11 @@ char *argv[];
   int ip;
   int iz;
 
+#if 1
   double xEst[]={0.0, 0.0, 0.0}; //[x y yo]
+#else
+  double xEst[]={0.0, 20.0, 0.0}; //[x y yo]
+#endif
   // State Vector [x y yaw]'
   /* xEst=[0 0 0]'; */
   double xTrue[DIM]; 
@@ -81,6 +90,7 @@ char *argv[];
         -5 20];
   **/
   double RFID[][2]={{10,0},{10,10},{0,15},{-5,20}};
+  double ROUT[][2]={{0,0},{20,10},{0,20},{-20,10},{0,0}};
 
   double **Qsigma;
   double **Q;
@@ -92,6 +102,9 @@ char *argv[];
   double **XRFID;
   int    izn;
 
+  int    icorner;
+  double **xRout;
+
   FILE *fdbg;
 
   if(argc < 2) {
@@ -100,11 +113,12 @@ char *argv[];
   }
   if(!(fdbg = fopen(argv[1],"w"))) {
     fprintf(stderr,"Cannot write tracefile=[%s]\n",argv[1]);
+    exit(-2);
   }
 
   time=0;   //sec
   dt = 0.1; 
-  endtime = 60; // [sec]
+  endtime = 180; // [sec]
   //nSteps = ceil((endtime - time)/dt);
   nSteps = (int)((endtime - time)/dt+0.5);
   
@@ -164,10 +178,17 @@ char *argv[];
   for(i=0;i<4;i++) for(j=0;j<2;j++) XRFID[i][j]=RFID[i][j];
   z    = (double **)comMxAlloc(4,3,sizeof(double));
 
+  xRout = (double **)comMxAlloc(5,2,sizeof(double));
+  for(i=0;i<5;i++) for(j=0;j<2;j++) xRout[i][j] = ROUT[i][j];
+  icorner = 1;
+  u[0]=1;
+  u[1]=toRadian(5.0);
+
   for(i=0; i <nSteps; i++) {
     time = time + dt;
     /* Input out u[0]:r進行幅 u[1]:θ方向幅 time ->(1 5度) に漸近 */ 
-    doControl(time,u);
+    icorner=doControl(time,u,xEst,xRout,icorner);
+    if(icorner >= MAX_CORNER) break;
     /* Observation  
       out xTrue[0]:X軸 dt*r*cosθ x[0]: Y軸 dt*r*sinθ x[2]: 角度 dt*θ
       out xd : xTrueのノイズ付き
@@ -230,6 +251,7 @@ char *argv[];
   comMxFree(Qsigma,2,2);
   comMxFree(XRFID,4,2);
   comMxFree(z,4,3);
+  comMxFree(xRout,5,2);
   
 
   return(0);
@@ -366,6 +388,7 @@ void factor(double *x, double *u,double dt)
 
   for(i=0;i<3;i++) for(j=0;j<3;j++) FM[i][j]=F[i][j];
 
+
   B[0][0] = dt*cos(x[2]); B[0][1] = 0;
   B[1][0] = dt*sin(x[2]); B[1][1] = 0;
   B[2][0] = 0;            B[2][1] = dt;
@@ -384,21 +407,92 @@ void factor(double *x, double *u,double dt)
 /*****************/
 /* function u = doControl(time) */
 /*****************/
-double doControl(double time,double *u)
+int doControl(double time,double *u,double *xEst,double **xRout,int idx)
 {
  //Calc Input Parameter
   int T;
   double V;
+#if 0
   double yawrate;
+
 
   T=10; // [sec]
   // [V yawrate]
   V=1.0; // [m/s]
+
   yawrate = 5; // [deg/s]
  
   //u =[ V*(1-exp(-time/T)) toRadian(yawrate)*(1-exp(-time/T))]';
   u[0] = V*(1-exp(-time/T));
   u[1] = toRadian(yawrate)*(1-exp(-time/T));
+
+  return(0);
+
+#else
+  double dis;
+  int j;
+  double disx,disy,dirx,diry;
+  double dAngle,theta,alpha;
+
+  T=10; // [sec]
+  // [V yawrate]
+  V=1.0; // [m/s]
+
+  /* 目標位置までの距離 */
+  for(dis=0,j=0;j<2;j++) {
+    dis += pow(xRout[idx][j]-xEst[j],2);
+  }
+  dis = sqrt(dis);
+  
+  /* 目標位置が許容範囲 次の目標へ*/
+  if(dis < PERMIT_SIZE) {
+    return(idx+1);
+  }
+  
+  /* 許容外 */
+  dirx = xRout[idx][0] - xRout[idx-1][0];
+  diry = xRout[idx][1] - xRout[idx-1][1];
+
+  disx = xRout[idx][0] - xEst[0];
+  disy = xRout[idx][1] - xEst[1];
+
+  alpha = xEst[2] / PAI * 180.0;
+
+  if(dirx >= 0 && diry >= 0) { 
+    if(disx != 0) theta = atan(disy/disx)/PAI * 180.0;
+    else          theta = 90.0;
+
+    dAngle = theta - alpha;
+    u[1] = toRadian(dAngle)*(1-exp(-dis/T));
+    u[0] = (+1) * V*(1-exp(-dis/T));
+  }
+  else if(dirx < 0 && diry >= 0) { 
+    if(disx != 0) theta = atan(disy/disx)/PAI * 180.0;
+    else          theta = 90.0;
+
+    dAngle = theta - alpha;
+    u[1] = toRadian(dAngle)*(1-exp(-dis/T));
+    u[0] = (-1) * V*(1-exp(-dis/T));
+  }
+  else if(dirx >= 0 && diry < 0) { 
+    if(disx != 0) theta = atan(disy/disx)/PAI * 180.0;
+    else          theta = 90.0;
+
+    dAngle = theta - alpha;
+    u[1] = toRadian(dAngle)*(1-exp(-dis/T));
+    u[0] = (+1) * V*(1-exp(-dis/T));
+  }
+  else if(dirx < 0 && diry < 0) { 
+    if(disx != 0) theta = atan(disy/disx)/PAI * 180.0;
+    else          theta = 90.0;
+
+    dAngle = theta - alpha;
+    u[1] = toRadian(dAngle)*(1-exp(-dis/T));
+    u[0] = (-1) * V*(1-exp(-dis/T));
+  }
+  return(idx);
+
+#endif
 
   return(0);
 }
@@ -432,7 +526,7 @@ double **z;
   //Simulate Observation
   //z=[];
   izn=0;
-  for(iz=0; iz <4 /*length(RFID(:,1))*/; iz++) {
+  for(iz=0; iz <NPRIF /*length(RFID(:,1))*/; iz++) {
     //d=norm(RFID(iz,:)-x(1:2)');
     for(d=0,j=0;j<2;j++) {
       //d += pow(RFID[iz][j] - x[j],2);
@@ -440,9 +534,9 @@ double **z;
     }
     d = sqrt(d);
     if(d <MAX_FRANGE) { //観測範囲内
-        z[iz][0] = d+sqrt(Rsigma)*pNormR(rand()/(double)RAND_MAX);
-        z[iz][1] = RFID[iz][0];
-        z[iz][2] = RFID[iz][1];   
+        z[izn][0] = d+sqrt(Rsigma)*pNormR(rand()/(double)RAND_MAX);
+        z[izn][1] = RFID[iz][0];
+        z[izn][2] = RFID[iz][1];   
         izn++;
     }
   }
