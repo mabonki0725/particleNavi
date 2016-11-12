@@ -8,4 +8,4 @@
 3 目標とするコーナと推定された走行角度より角度を調整  
 4 コーナの近傍(距離1以内)に達すると次のコーナは向かう  
 
-![Robot trace](https://cloud.githubusercontent.com/assets/20177544/20214301/9f417d7a-a850-11e6-8ab0-d835c2d6a838.png)
+![Robot trace](https://cloud.githubusercontent.com/assets/20177544/20238207/68f4e714-a929-11e6-81dc-74f64068db33.png)
